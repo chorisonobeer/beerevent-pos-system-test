@@ -98,7 +98,7 @@ export default function Home() {
     console.log('Current products:', products);
     fetchProducts();
     fetchRegisterBalance();
-  }, []);
+  }, []); // 空の依存
 
   const fetchProducts = async () => {
     try {
