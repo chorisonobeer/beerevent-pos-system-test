@@ -3,7 +3,21 @@ import { useRouter } from 'next/router';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState({
+    totalSales: 0,
+    totalTransactions: 0,
+    targetSales: 0,
+    targetQuantity: 0,
+    salesDifference: 0,
+    productSales: [],
+    expenses: {
+      boothFee: 0,
+      laborCost: 0,
+      transportationCost: 0,
+      miscCost: 0,
+      total: 0
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +37,7 @@ export default function Dashboard() {
   };
 
   const formatCurrency = (value) => {
+    if (value === undefined || value === null) return '¥0';
     return `¥${value.toLocaleString()}`;
   };
 
@@ -44,7 +59,7 @@ export default function Dashboard() {
             <div className="bg-slate-50 p-3 rounded-lg">
               <div className="text-sm text-slate-600">総取引数</div>
               <div className="text-xl font-bold text-slate-800">
-                {data.totalTransactions}件
+                {data.totalTransactions || 0}件
               </div>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg">
@@ -63,21 +78,28 @@ export default function Dashboard() {
             <div>
               <div className="flex justify-between text-sm text-slate-600 mb-1">
                 <span>目標売上: {formatCurrency(data.targetSales)}</span>
-                <span>達成率: {((data.totalSales / data.targetSales) * 100).toFixed(1)}%</span>
+                <span>
+                  達成率: {((data.totalSales / (data.targetSales || 1)) * 100).toFixed(1)}%
+                </span>
               </div>
               <div className="w-full bg-slate-200 rounded-full h-2.5">
                 <div
                   className="bg-blue-600 h-2.5 rounded-full"
-                  style={{ width: `${Math.min((data.totalSales / data.targetSales) * 100, 100)}%` }}
+                  style={{ 
+                    width: `${Math.min(
+                      ((data.totalSales || 0) / (data.targetSales || 1)) * 100,
+                      100
+                    )}%`
+                  }}
                 ></div>
               </div>
             </div>
             <div className={`text-right font-bold ${
-              data.salesDifference > 0 ? 'text-red-600' : 'text-green-600'
+              (data.salesDifference || 0) > 0 ? 'text-red-600' : 'text-green-600'
             }`}>
-              {data.salesDifference > 0 
+              {(data.salesDifference || 0) > 0 
                 ? `目標まで ${formatCurrency(data.salesDifference)} 不足`
-                : `目標を ${formatCurrency(Math.abs(data.salesDifference))} 超過`}
+                : `目標を ${formatCurrency(Math.abs(data.salesDifference || 0))} 超過`}
             </div>
           </div>
         </div>
@@ -86,13 +108,13 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-lg font-bold text-slate-800 mb-4">商品別売上</h2>
           <div className="space-y-4">
-            {data.productSales.map((product) => (
+            {(data.productSales || []).map((product) => (
               <div key={product.name} className="border-b border-slate-100 pb-3">
                 <div className="font-medium text-slate-800 mb-1">{product.name}</div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-slate-600">販売数: </span>
-                    <span className="font-medium">{product.quantity}個</span>
+                    <span className="font-medium">{product.quantity || 0}個</span>
                   </div>
                   <div>
                     <span className="text-slate-600">売上: </span>
