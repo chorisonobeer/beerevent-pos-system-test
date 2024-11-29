@@ -102,7 +102,14 @@ export default function Home() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('/api/products', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          // キャッシュバスターとしてタイムスタンプを追加
+          'x-timestamp': Date.now()
+        },
+      });
       const data = await response.json();
       console.log('Fetched data:', data);
       setProducts(data);
@@ -113,7 +120,13 @@ export default function Home() {
 
   const fetchRegisterBalance = async () => {
     try {
-      const response = await fetch('/api/register-balance');
+      const response = await fetch('/api/register-balance', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'x-timestamp': Date.now()
+        },
+      });
       const data = await response.json();
       setRegisterBalance(data.balance);
     } catch (error) {
