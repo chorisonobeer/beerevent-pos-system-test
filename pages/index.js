@@ -106,13 +106,17 @@ export default function Home() {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-          // キャッシュバスターとしてタイムスタンプを追加
           'x-timestamp': Date.now()
         },
       });
       const data = await response.json();
-      console.log('Fetched data:', data);
-      setProducts(data);
+      console.log('Fetched products data:', data);
+      // データが配列であることを確認
+      if (Array.isArray(data)) {
+        setProducts(data);
+      } else {
+        console.error('Invalid products data format:', data);
+      }
     } catch (error) {
       console.error('商品データの取得に失敗:', error);
     }
