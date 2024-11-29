@@ -154,7 +154,7 @@ export default function Home() {
                 <button
                   key={product.id}
                   onClick={() => addItem({ 
-                    id: `${product.id}-${size}`,
+                    id: `${product.id}`,
                     name: product.name,
                     price: product.prices.M
                   })}
