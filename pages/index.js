@@ -100,27 +100,30 @@ export default function Home() {
     fetchRegisterBalance();
   }, []); // 空の依存
 
-  const fetchProducts = async () => {
-    try {
-      const response = await fetch('/api/products', {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'x-timestamp': Date.now()
-        },
-      });
-      const data = await response.json();
-      console.log('Fetched products data:', data);
-      // データが配列であることを確認
-      if (Array.isArray(data)) {
-        setProducts(data);
-      } else {
-        console.error('Invalid products data format:', data);
+const fetchProducts = async () => {
+  try {
+    console.log('Fetching products...');
+    const response = await fetch('/api/products', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       }
-    } catch (error) {
-      console.error('商品データの取得に失敗:', error);
+    });
+    const data = await response.json();
+    console.log('Raw products data:', data);
+
+    // 初期商品データを削除（スプレッドシートのデータのみを使用）
+    setProducts([]);  // 初期値をクリア
+
+    if (Array.isArray(data) && data.length > 0) {
+      setProducts(data);
+    } else {
+      console.error('Invalid products data format:', data);
     }
-  };
+  } catch (error) {
+    console.error('商品データの取得に失敗:', error);
+  }
+};
 
   const fetchRegisterBalance = async () => {
     try {

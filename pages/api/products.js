@@ -16,9 +16,11 @@ export default async function handler(req, res) {
     console.log('Fetching data from spreadsheet...');
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: '商品マスタ!A2:D10',
+      range: '商品マスタ!A2:D10',  // 範囲が正しいか確認
+      valueRenderOption: 'UNFORMATTED_VALUE'  // 生の値を取得
     });
 
+    
     console.log('Spreadsheet Response:', response.data);
 
     if (!response.data.values) {
