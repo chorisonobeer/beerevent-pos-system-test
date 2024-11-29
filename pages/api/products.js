@@ -3,9 +3,23 @@ import { google } from 'googleapis';
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
+  console.log('Environment check:', {
+    hasGoogleCreds: !!process.env.GOOGLE_SERVICE_ACCOUNT,
+    hasSpreadsheetId: !!process.env.SPREADSHEET_ID,
+    spreadsheetId: process.env.SPREADSHEET_ID,
+    // JSON解析のテスト（エラーがあれば検出できる）
+    credentialsValid: (() => {
+      try {
+        JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+        return true;
+      } catch (e) {
+        return `Error parsing credentials: ${e.message}`;
+      }
+    })()
+  });
+
   try {
     console.log('Starting API request...');
-    console.log('SPREADSHEET_ID:', process.env.SPREADSHEET_ID);
 
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
@@ -46,8 +60,14 @@ export default async function handler(req, res) {
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      response: error.response?.data
+      response: error.response?.data,
+      // エラーオブジェクトの詳細な情報
+      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
     });
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      // 開発環境でのみスタックトレースを返す
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
