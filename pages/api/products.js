@@ -17,10 +17,6 @@ export default function handler(req, res) {
     }
   ];
 
-  // CORSヘッダーとキャッシュ制御を設定
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  
-  // 単純に固定データを返す
   res.status(200).json(testProducts);
 }
