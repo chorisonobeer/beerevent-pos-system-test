@@ -5,6 +5,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
+  // スプレッドシートIDをヘッダーから取得
+  const spreadsheetId = req.headers['x-spreadsheet-id'];
+  
+  if (!spreadsheetId) {
+    return res.status(400).json({ error: 'Spreadsheet ID is required' });
+  }
+
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
@@ -12,7 +19,6 @@ export default async function handler(req, res) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.SPREADSHEET_ID;
 
     const { 
       items, 
@@ -25,7 +31,7 @@ export default async function handler(req, res) {
 
     // 商品詳細の文字列を作成
     const itemsDetails = items.map(item => 
-      `${item.name}(${item.quantity}個)`
+      `${item.name}(${item.quantity}個)(${item.price}円)`
     ).join(', ');
 
     // スプレッドシートに追加する行データ
@@ -57,7 +63,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Error recording transaction:', error);
+    console.error('Error recording transaction:', {
+      message: error.message,
+      stack: error.stack,
+      spreadsheetId
+    });
     res.status(500).json({ 
       error: 'Failed to record transaction',
       details: error.message

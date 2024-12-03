@@ -1,6 +1,13 @@
 import { google } from 'googleapis';
 
 export default async function handler(req, res) {
+  // スプレッドシートIDをヘッダーから取得
+  const spreadsheetId = req.headers['x-spreadsheet-id'];
+  
+  if (!spreadsheetId) {
+    return res.status(400).json({ error: 'Spreadsheet ID is required' });
+  }
+
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
@@ -8,12 +15,11 @@ export default async function handler(req, res) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.SPREADSHEET_ID;
 
     if (req.method === 'GET') {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: 'イベント設定!B1:B10', // 範囲を1行増やす
+        range: 'イベント設定!B1:B12',
       });
 
       const values = response.data.values?.map(row => row[0]) || [];
@@ -22,13 +28,15 @@ export default async function handler(req, res) {
         eventName: values[0] || '',
         startDate: values[1] || '',
         endDate: values[2] || '',
-        targetSales: parseInt(values[3]) || 0,
-        targetQuantity: parseInt(values[4]) || 0,
-        boothFee: parseInt(values[5]) || 0,
-        laborCost: parseInt(values[6]) || 0,
-        transportationCost: parseInt(values[7]) || 0,
-        miscCost: parseInt(values[8]) || 0,
-        initialCash: parseInt(values[9]) || 0 // 初期レジ金を追加
+        initialCash: values[3] || 0,
+        targetSales: parseInt(values[4]) || 0,
+        targetQuantity: parseInt(values[5]) || 0,
+        boothFee: parseInt(values[6]) || 0,
+        laborCost: parseInt(values[7]) || 0,
+        transportationCost: parseInt(values[8]) || 0,
+        miscCost: parseInt(values[9]) || 0,
+        margin: parseInt(values[10]) || 0,
+        breakEvenPoint: parseInt(values[11]) || 0
       };
 
       res.status(200).json(settings);
@@ -38,31 +46,35 @@ export default async function handler(req, res) {
         eventName,
         startDate,
         endDate,
+        initialCash,
         targetSales,
         targetQuantity,
         boothFee,
         laborCost,
         transportationCost,
         miscCost,
-        initialCash // 初期レジ金を追加
+        margin,
+        breakEvenPoint
       } = req.body;
 
       const values = [
         [eventName],
         [startDate],
         [endDate],
+        [initialCash],
         [targetSales],
         [targetQuantity],
         [boothFee],
         [laborCost],
         [transportationCost],
         [miscCost],
-        [initialCash] // 初期レジ金を追加
+        [margin],
+        [breakEvenPoint]
       ];
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: 'イベント設定!B1:B10', // 範囲を1行増やす
+        range: 'イベント設定!B1:B12',
         valueInputOption: 'RAW',
         resource: {
           values: values
@@ -70,6 +82,7 @@ export default async function handler(req, res) {
       });
 
       res.status(200).json({ success: true, message: 'Settings updated successfully' });
+
     } else {
       res.status(405).json({ message: 'Method not allowed' });
     }

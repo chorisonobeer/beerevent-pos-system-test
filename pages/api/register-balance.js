@@ -1,6 +1,13 @@
 import { google } from 'googleapis';
 
 export default async function handler(req, res) {
+  // スプレッドシートIDをヘッダーから取得
+  const spreadsheetId = req.headers['x-spreadsheet-id'];
+  
+  if (!spreadsheetId) {
+    return res.status(400).json({ error: 'Spreadsheet ID is required' });
+  }
+
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
@@ -8,12 +15,11 @@ export default async function handler(req, res) {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.SPREADSHEET_ID;
 
     // 初期レジ金を取得
     const initialCashResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'イベント設定!B10', // 初期レジ金の位置
+      range: 'イベント設定!B4', // 初期レジ金の位置
       valueRenderOption: 'UNFORMATTED_VALUE'
     });
 
@@ -41,12 +47,17 @@ export default async function handler(req, res) {
     console.log({
       initialCash,
       transactionsTotal,
-      totalBalance
+      totalBalance,
+      spreadsheetId
     });
 
     res.status(200).json({ balance: totalBalance });
   } catch (error) {
-    console.error('Error fetching register balance:', error);
+    console.error('Error fetching register balance:', {
+      message: error.message,
+      stack: error.stack,
+      spreadsheetId
+    });
     res.status(500).json({ error: 'Failed to fetch register balance' });
   }
 }
