@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { fetchWithSpreadsheetId, hasSpreadsheetId } from "../utils/api";
-import { useError } from "../contexts/ErrorContext";
+import { useAppState } from "../contexts/AppStateContext"; // 追加
+import { useError } from "../contexts/ErrorContext"; // 追加
 
 export default function Dashboard() {
   const router = useRouter();
@@ -22,7 +23,8 @@ export default function Dashboard() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [dataCache, setDataCache] = useState({});
-  const { setError } = useError();
+  const { isOffline } = useAppState(); // 追加
+  const { setError } = useError(); // 追加
 
   useEffect(() => {
     setMounted(true);
@@ -48,14 +50,10 @@ export default function Dashboard() {
   const fetchEventSettings = async () => {
     try {
       const response = await fetchWithSpreadsheetId("/api/event-settings");
-      if (!response.ok) {
-        throw new Error("イベント設定の取得に失敗しました");
-      }
-      const data = await response.json();
+      const data = await response.json(); // response.okのチェックを削除
       setEventSettings(data);
     } catch (error) {
-      console.error("イベント設定の取得に失敗:", error);
-      setError("イベント設定の取得に失敗しました。再度お試しください。");
+      setError("イベント設定の取得に失敗しました。再度お試しください。"); // エラーメッセージを簡潔に変更
       setIsLoading(false);
     }
   };
@@ -106,6 +104,17 @@ export default function Dashboard() {
     const dateKey = date.toISOString().split("T")[0];
 
     console.log("Fetching data for date:", date.toISOString());
+
+    // オフライン時はキャッシュのみ使用  // 追加
+    if (!navigator.onLine) {
+      // 追加
+      if (dataCache[dateKey]) {
+        // 追加
+        setDailyData(dataCache[dateKey]); // 追加
+        return; // 追加
+      } // 追加
+      throw new Error("オフライン時にキャッシュが見つかりません"); // 追加
+    } // 追加
 
     if (dataCache[dateKey]) {
       console.log("Using cached data for:", dateKey);

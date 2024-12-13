@@ -1,108 +1,164 @@
-// リトライ設定
-const RETRY_COUNT = 3;
-const RETRY_DELAY = 1000; // ミリ秒
+import { initDB } from "./indexedDB";
 
-// API呼び出し用のリトライラッパー
-export async function withRetry(operation, retryCount = RETRY_COUNT) {
-  for (let i = 0; i < retryCount; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (i === retryCount - 1) throw error;
+// 定数定義
+const MAX_RETRY_COUNT = 3;
+const RETRY_DELAY = 1000; // 1秒
+const ERROR_STORE = "errorLogs";
+const MAX_LOG_AGE = 7 * 24 * 60 * 60 * 1000; // 7日間
 
-      // ネットワークエラーの場合のみリトライ
-      if (!error.message.includes("Failed to fetch")) throw error;
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, RETRY_DELAY * (i + 1))
-      );
-    }
-  }
-}
-
-// オフラインキャッシュのキー生成
-export function generateCacheKey(endpoint, params = {}) {
-  return `pos_cache_${endpoint}_${JSON.stringify(params)}`;
-}
-
-// オフラインキャッシュの保存
-export function saveToOfflineCache(key, data) {
+// APIコール用のリトライラッパー
+export async function withRetry(operation, retryCount = 0) {
   try {
-    localStorage.setItem(
-      key,
-      JSON.stringify({
-        data,
-        timestamp: new Date().getTime(),
-      })
+    return await operation();
+  } catch (error) {
+    if (retryCount >= MAX_RETRY_COUNT) {
+      throw error;
+    }
+    // ネットワークエラーの場合のみリトライ
+    if (!error.message.includes("Failed to fetch")) {
+      throw error;
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, RETRY_DELAY * (retryCount + 1))
     );
-  } catch (error) {
-    console.error("Cache save error:", error);
+    return withRetry(operation, retryCount + 1);
   }
 }
 
-// オフラインキャッシュからの読み込み
-export function loadFromOfflineCache(key, maxAge = 3600000) {
-  // デフォルト1時間
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
+// エラーメッセージの標準化
+export function normalizeError(error) {
+  // ネットワークエラー
+  if (!navigator.onLine) {
+    return {
+      code: "OFFLINE",
+      message: "インターネット接続がありません",
+    };
+  }
 
-    const { data, timestamp } = JSON.parse(cached);
-    if (new Date().getTime() - timestamp > maxAge) {
-      localStorage.removeItem(key);
-      return null;
+  // API エラー
+  if (error.response) {
+    const status = error.response.status;
+    switch (status) {
+      case 401:
+        return {
+          code: "AUTH_ERROR",
+          message: "認証に失敗しました",
+        };
+      case 403:
+        return {
+          code: "PERMISSION_ERROR",
+          message: "アクセス権限がありません",
+        };
+      case 404:
+        return {
+          code: "NOT_FOUND",
+          message: "リソースが見つかりません",
+        };
+      default:
+        return {
+          code: "API_ERROR",
+          message: "サーバーエラーが発生しました",
+        };
     }
+  }
 
-    return data;
+  // その他のエラー
+  return {
+    code: "UNKNOWN_ERROR",
+    message: "エラーが発生しました",
+  };
+}
+
+// データ整合性チェック
+export function validateSyncData(localData, serverData) {
+  try {
+    const localTimestamp = new Date(localData.timestamp);
+    const serverTimestamp = new Date(serverData.timestamp);
+
+    return {
+      isValid: localTimestamp <= serverTimestamp,
+      needsUpdate: localTimestamp < serverTimestamp,
+      conflicted: localTimestamp > serverTimestamp,
+    };
   } catch (error) {
-    console.error("Cache load error:", error);
-    return null;
+    return {
+      isValid: false,
+      needsUpdate: true,
+      conflicted: false,
+    };
   }
 }
 
-// オフラインキューの管理
-export function addToOfflineQueue(operation) {
+// エラーログの記録
+export async function logError(error, context = {}) {
+  const errorLog = {
+    timestamp: new Date().toISOString(),
+    error: normalizeError(error),
+    context: {
+      url: window.location.href,
+      online: navigator.onLine,
+      ...context,
+    },
+  };
+
+  // 開発環境ではコンソールに出力
+  if (process.env.NODE_ENV === "development") {
+    console.error("Error logged:", errorLog);
+  }
+
+  // エラーログの保存とクリーンアップ
+  await saveErrorLog(errorLog);
+}
+
+// エラーログの保存
+async function saveErrorLog(errorLog) {
   try {
-    const queue = JSON.parse(localStorage.getItem("pos_offline_queue") || "[]");
-    queue.push({
-      operation,
-      timestamp: new Date().getTime(),
-    });
-    localStorage.setItem("pos_offline_queue", JSON.stringify(queue));
+    const db = await initDB();
+    const tx = db.transaction(ERROR_STORE, "readwrite");
+    const store = tx.objectStore(ERROR_STORE);
+
+    await store.add(errorLog);
+    await cleanOldLogs(store);
   } catch (error) {
-    console.error("Queue save error:", error);
+    console.error("Failed to save error log:", error);
   }
 }
 
-// オフラインキューの処理
-export async function processOfflineQueue() {
+// 古いログの削除
+async function cleanOldLogs(store) {
   try {
-    const queue = JSON.parse(localStorage.getItem("pos_offline_queue") || "[]");
-    if (queue.length === 0) return;
+    const logs = await store.getAll();
+    const cutoffDate = new Date(Date.now() - MAX_LOG_AGE);
 
-    const newQueue = [];
-    for (const item of queue) {
-      try {
-        await withRetry(() => item.operation());
-      } catch (error) {
-        newQueue.push(item);
+    for (const log of logs) {
+      if (new Date(log.timestamp) < cutoffDate) {
+        await store.delete(log.id);
       }
     }
-
-    localStorage.setItem("pos_offline_queue", JSON.stringify(newQueue));
   } catch (error) {
-    console.error("Queue processing error:", error);
+    console.error("Failed to clean old logs:", error);
   }
 }
 
-// オンライン状態の監視
-export function setupOnlineListener(callback) {
-  window.addEventListener("online", () => {
-    callback(true);
-    processOfflineQueue();
-  });
+// オフラインエラー復旧処理
+export async function handleOfflineRecovery() {
+  if (!navigator.onLine) return;
 
-  window.addEventListener("offline", () => {
-    callback(false);
-  });
+  const db = await initDB();
+  const tx = db.transaction(ERROR_STORE, "readonly");
+  const store = tx.objectStore(ERROR_STORE);
+  const logs = await store.getAll();
+
+  const offlineErrors = logs.filter((log) => log.error.code === "OFFLINE");
+  for (const error of offlineErrors) {
+    try {
+      // リトライロジックの実行
+      await withRetry(async () => {
+        // ここで実際の再試行処理を実装
+        // 例: APIリクエストの再実行など
+      });
+    } catch (retryError) {
+      console.error("Recovery failed for error:", retryError);
+    }
+  }
 }
